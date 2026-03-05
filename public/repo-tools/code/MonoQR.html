@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MonoQR - 极简二维码生成器</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='0' fill='%2309090b'/><rect x='20' y='20' width='25' height='25' fill='white'/><rect x='55' y='20' width='25' height='25' fill='white'/><rect x='20' y='55' width='25' height='25' fill='white'/><rect x='55' y='55' width='25' height='10' fill='white'/><rect x='70' y='70' width='10' height='10' fill='white'/></svg>">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* 基础样式修正 */
+        body { margin: 0; padding: 0; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        /* 确保 Canvas 放大时不模糊 */
+        canvas { image-rendering: pixelated; }
+    </style>
+</head>
+<body class="bg-white text-zinc-900 font-sans antialiased h-screen w-screen overflow-hidden flex flex-col md:flex-row">
+
+    <div class="w-full md:w-[450px] border-r border-zinc-200 bg-white flex flex-col h-full z-20 shadow-xl shadow-zinc-200/50 relative">
+        
+        <div class="p-6 border-b border-zinc-200 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center shadow-md">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 3H10V10H3V3Z" fill="white"/><path d="M14 3H21V10H14V3Z" fill="white"/><path d="M3 14H10V21H3V14Z" fill="white"/><path d="M14 14H16V16H14V14Z" fill="white"/><path d="M19 14H21V16H19V14Z" fill="white"/><path d="M14 19H16V21H14V19Z" fill="white"/><path d="M19 19H21V21H19V19Z" fill="white"/></svg>
+                </div>
+                <h1 class="text-lg font-bold tracking-tight">MonoQR</h1>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
+            
+            <div class="space-y-2 relative">
+                <div class="flex justify-between items-baseline">
+                    <label class="text-sm font-medium leading-none text-zinc-900">内容</label>
+                    <span class="text-xs text-zinc-400 font-mono" id="char-counter">0 / 0 bytes</span>
+                </div>
+                
+                <div class="relative group">
+                    <textarea 
+                        id="text-input" 
+                        class="flex w-full rounded-md border border-zinc-200 bg-white px-3 py-3 text-sm ring-offset-white placeholder:text-zinc-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 min-h-[140px] resize-none font-mono text-xs leading-relaxed transition-all" 
+                        placeholder="在此输入链接或文本..."
+                    ></textarea>
+                </div>
+                
+                <div id="error-msg" class="hidden text-xs text-red-500 flex items-center mt-1 p-2 bg-red-50 rounded border border-red-100">
+                    <svg class="w-3 h-3 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span id="error-text">内容超出限制</span>
+                </div>
+            </div>
+
+            <div class="h-px bg-zinc-100"></div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <label class="text-sm font-medium leading-none text-zinc-900">容错率 (ECC)</label>
+                    <div class="relative">
+                        <select id="ecc-level" class="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 appearance-none cursor-pointer">
+                            <option value="L">Low (7%)</option>
+                            <option value="M" selected>Medium (15%)</option>
+                            <option value="Q">Quartile (25%)</option>
+                            <option value="H">High (30%)</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-zinc-500">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-sm font-medium leading-none text-zinc-900">尺寸 (px)</label>
+                    <div class="relative">
+                        <select id="size-preset" class="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 appearance-none cursor-pointer transition-all">
+                            <option value="512">512 px</option>
+                            <option value="1024" selected>1024 px</option>
+                            <option value="2048">2048 px</option>
+                            <option value="4096">4096 px</option>
+                            <option value="custom">自定义...</option>
+                        </select>
+                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-zinc-500">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                    </div>
+                    <input type="number" id="size-custom" class="hidden mt-2 flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900" placeholder="请输入 100-5000" min="100" max="5000">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <label class="text-sm font-medium leading-none text-zinc-900">前景色</label>
+                    <div class="flex items-center space-x-2 p-1 border border-zinc-200 rounded-md bg-white">
+                        <input type="color" id="fg-color" value="#000000" class="h-8 w-8 rounded cursor-pointer border-none p-0 bg-transparent">
+                        <span class="text-xs text-zinc-500 font-mono flex-1 text-center" id="fg-text">#000000</span>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-medium leading-none text-zinc-900">背景色</label>
+                    <div class="flex items-center space-x-2 p-1 border border-zinc-200 rounded-md bg-white">
+                        <input type="color" id="bg-color" value="#ffffff" class="h-8 w-8 rounded cursor-pointer border-none p-0 bg-transparent">
+                        <span class="text-xs text-zinc-500 font-mono flex-1 text-center" id="bg-text">#FFFFFF</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="p-6 border-t border-zinc-200 bg-zinc-50/50">
+            <button id="download-btn" class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-900 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none bg-zinc-900 text-white hover:bg-zinc-800 h-11 w-full shadow-sm">
+                下载 PNG 图片
+            </button>
+            <p class="mt-2 text-[10px] text-center text-zinc-400">生成过程完全在本地完成。</p>
+        </div>
+    </div>
+
+    <div class="flex-1 bg-zinc-100 relative flex flex-col items-center justify-center overflow-hidden">
+        <div class="absolute inset-0 pointer-events-none" 
+             style="background-image: linear-gradient(#e5e7eb 1px, transparent 1px), linear-gradient(90deg, #e5e7eb 1px, transparent 1px); background-size: 40px 40px; opacity: 0.6;">
+        </div>
+
+        <div class="relative z-10 flex flex-col items-center">
+            <div class="bg-white p-6 rounded-xl shadow-2xl shadow-zinc-200 border border-white/60 transition-all duration-300 ease-out" id="preview-card">
+                <canvas id="qr-canvas" class="block object-contain bg-white" style="width: 300px; height: 300px;"></canvas>
+                
+                <div id="empty-state" class="absolute inset-0 flex items-center justify-center bg-white rounded-xl flex-col">
+                     <svg class="w-8 h-8 text-zinc-200 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                     <span class="text-xs text-zinc-400 font-medium">输入内容以生成</span>
+                </div>
+            </div>
+            
+            <div class="mt-8 flex items-center gap-3 px-4 py-2 bg-white/80 backdrop-blur border border-zinc-200 rounded-full shadow-sm">
+                <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" id="status-dot"></div>
+                <span class="text-xs font-medium text-zinc-600 font-mono" id="status-text">Ready</span>
+            </div>
+        </div>
+        
+        <div id="toast" class="fixed top-5 right-5 bg-zinc-900 text-white px-4 py-3 rounded shadow-lg transform translate-y-[-100px] transition-transform duration-300 flex items-center z-50">
+            <svg class="w-4 h-4 mr-2 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            <span class="text-sm font-medium">已下载</span>
+        </div>
+    </div>
+
+    <script>
+        // DOM 工具
+        const $ = (id) => document.getElementById(id);
+
+        // 字节计算逻辑
+        const MAX_BYTES = {
+            'L': 2953, // Low
+            'M': 2331, // Medium
+            'Q': 1663, // Quartile
+            'H': 1273  // High
+        };
+
+        function getUTF8Length(str) {
+            let s = str.length;
+            for (let i = str.length - 1; i >= 0; i--) {
+                const code = str.charCodeAt(i);
+                if (code > 0x7f && code <= 0x7ff) s++;
+                else if (code > 0x7ff && code <= 0xffff) s += 2;
+                if (code >= 0xDC00 && code <= 0xDFFF) i--; 
+            }
+            return s;
+        }
+
+        const ui = {
+            text: $('text-input'),
+            ecc: $('ecc-level'),
+            sizePreset: $('size-preset'),
+            sizeCustom: $('size-custom'),
+            fg: $('fg-color'),
+            bg: $('bg-color'),
+            fgText: $('fg-text'),
+            bgText: $('bg-text'),
+            canvas: $('qr-canvas'),
+            emptyState: $('empty-state'),
+            charCounter: $('char-counter'),
+            errorMsg: $('error-msg'),
+            errorText: $('error-text'),
+            downloadBtn: $('download-btn'),
+            statusText: $('status-text'),
+            statusDot: $('status-dot'),
+            toast: $('toast')
+        };
+
+        let state = {
+            isValid: true,
+            currentSize: 1024
+        };
+
+        function render() {
+            const text = ui.text.value;
+            const ecc = ui.ecc.value;
+            const fg = ui.fg.value;
+            const bg = ui.bg.value;
+
+            // 1. 确定尺寸
+            let size = parseInt(ui.sizePreset.value === 'custom' ? ui.sizeCustom.value : ui.sizePreset.value);
+            if (isNaN(size) || size < 100) size = 100;
+            if (size > 8000) size = 8000; 
+            state.currentSize = size;
+
+            ui.fgText.textContent = fg.toUpperCase();
+            ui.bgText.textContent = bg.toUpperCase();
+
+            // 2. 容量检查
+            const byteCount = getUTF8Length(text);
+            const maxCapacity = MAX_BYTES[ecc];
+            ui.charCounter.textContent = `${byteCount} / ${maxCapacity} bytes`;
+
+            if (byteCount > maxCapacity) {
+                ui.errorMsg.classList.remove('hidden');
+                ui.errorText.textContent = `内容超出限制 (当前: ${byteCount} / 最大: ${maxCapacity})`;
+                ui.text.classList.add('border-red-500', 'focus-visible:ring-red-500');
+                ui.text.classList.remove('border-zinc-200', 'focus-visible:ring-zinc-900');
+                ui.downloadBtn.disabled = true;
+                ui.statusDot.className = "w-2 h-2 rounded-full bg-red-500";
+                ui.statusText.textContent = "Overflow";
+                state.isValid = false;
+                return;
+            } else {
+                ui.errorMsg.classList.add('hidden');
+                ui.text.classList.remove('border-red-500', 'focus-visible:ring-red-500');
+                ui.text.classList.add('border-zinc-200', 'focus-visible:ring-zinc-900');
+                ui.downloadBtn.disabled = false;
+                ui.statusDot.className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+                state.isValid = true;
+            }
+
+            if (!text) {
+                ui.emptyState.style.display = 'flex';
+                ui.statusText.textContent = "Waiting Input";
+                ui.statusDot.className = "w-2 h-2 rounded-full bg-zinc-300";
+                return;
+            }
+
+            ui.emptyState.style.display = 'none';
+
+            // 3. 生成二维码
+            try {
+                const qr = qrcode(0, ecc);
+                qr.addData(text);
+                qr.make();
+				
+                const moduleCount = qr.getModuleCount();
+                const ctx = ui.canvas.getContext('2d');
+
+                // 设置 Canvas 物理分辨率
+                ui.canvas.width = size;
+                ui.canvas.height = size;
+
+                const tileW = size / moduleCount;
+                const tileH = size / moduleCount;
+
+                // 填充背景
+                ctx.fillStyle = bg;
+                ctx.fillRect(0, 0, size, size);
+
+                // 填充前景
+                ctx.fillStyle = fg;
+                for (let row = 0; row < moduleCount; row++) {
+                    for (let col = 0; col < moduleCount; col++) {
+                        if (qr.isDark(row, col)) {
+                            const x = Math.ceil(col * tileW);
+                            const y = Math.ceil(row * tileH);
+                            const w = Math.ceil((col + 1) * tileW) - x;
+                            const h = Math.ceil((row + 1) * tileH) - y;
+                            ctx.fillRect(x, y, w, h);
+                        }
+                    }
+                }
+
+                // 视觉反馈尺寸调整
+                let visualSize = 260 + (size - 512) / 20; 
+                if (visualSize < 260) visualSize = 260;
+                if (visualSize > 400) visualSize = 400;
+                
+                ui.canvas.style.width = `${visualSize}px`;
+                ui.canvas.style.height = `${visualSize}px`;
+                
+                // 修复点：版本号是属性 (qr.typeNumber) 不是方法
+                ui.statusText.textContent = `${size}×${size}`;
+
+            } catch (e) {
+                console.error(e);
+                ui.errorMsg.classList.remove('hidden');
+                ui.errorText.textContent = "生成错误: " + e.message;
+            }
+        }
+
+        function debounce(func, delay) {
+            let timer;
+            return (...args) => {
+                clearTimeout(timer);
+                timer = setTimeout(() => func.apply(this, args), delay);
+            }
+        }
+
+        ui.sizePreset.addEventListener('change', (e) => {
+            if (e.target.value === 'custom') {
+                ui.sizeCustom.classList.remove('hidden');
+                ui.sizeCustom.focus();
+            } else {
+                ui.sizeCustom.classList.add('hidden');
+            }
+            render();
+        });
+
+        ui.downloadBtn.addEventListener('click', () => {
+            if (!state.isValid || !ui.text.value) return;
+
+            const now = new Date();
+            const dateStr = now.toISOString().replace(/[-:]/g, '').replace('T', '-').split('.')[0];
+            const filename = `MonoQR-${state.currentSize}px-${dateStr}.png`;
+
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = ui.canvas.toDataURL('image/png');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            const toast = ui.toast;
+            toast.style.transform = 'translateY(0)';
+            setTimeout(() => toast.style.transform = 'translateY(-100px)', 3000);
+        });
+
+        const debouncedRender = debounce(render, 100);
+        
+        ui.text.addEventListener('input', debouncedRender);
+        ui.ecc.addEventListener('change', render);
+        ui.sizeCustom.addEventListener('input', debouncedRender);
+        ui.fg.addEventListener('input', debouncedRender);
+        ui.bg.addEventListener('input', debouncedRender);
+
+        window.onload = () => {
+             ui.text.value = "https://vercel.com";
+             render();
+        };
+
+    </script>
+</body>
+</html>

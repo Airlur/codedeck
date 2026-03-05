@@ -1,0 +1,161 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CodeDeck Runner</title>
+  <style>
+    html,
+    body,
+    #frame {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      border: 0;
+      background: #ffffff;
+    }
+
+    body {
+      overflow: hidden;
+    }
+  </style>
+</head>
+
+<body>
+  <iframe id="frame" sandbox="allow-scripts allow-same-origin"></iframe>
+
+  <script>
+    const frame = document.getElementById('frame');
+    const query = new URLSearchParams(window.location.search);
+    const expectedToken = query.get('token');
+    const sharedToolId = query.get('tool');
+    const sharedFileName = query.get('file');
+    let lastToken = null;
+    let lastCode = null;
+
+    function renderCode(code, title) {
+      frame.srcdoc = code || '<h1>Empty</h1>';
+      if (title) {
+        document.title = title;
+      }
+    }
+
+    function renderError(message) {
+      renderCode(`<!doctype html><html><body style="font-family: sans-serif; padding: 24px;"><h2>CodeDeck 分享页</h2><p>${message}</p></body></html>`, 'CodeDeck Share');
+    }
+
+    async function loadPublishedTool(toolId, fileName) {
+      try {
+        const response = await fetch('/published.json', { cache: 'no-store' });
+        if (!response.ok) {
+          return { state: 'missing' };
+        }
+
+        const snapshot = await response.json();
+        const tools = Array.isArray(snapshot?.tools) ? snapshot.tools : [];
+        let tool = tools.find(
+          (item) => item && item.id === toolId && item.deletedAt === null && item.isPublic !== false,
+        );
+
+        if (!tool && fileName) {
+          tool = tools.find(
+            (item) => item && item.fileName === fileName && item.deletedAt === null && item.isPublic !== false,
+          );
+        }
+
+        if (!tool) return { state: 'not_found' };
+        return { state: 'ok', tool };
+      } catch {
+        return { state: 'error' };
+      }
+    }
+
+    async function loadRepoBaselineTool(toolId, fileName) {
+      try {
+        const manifestResp = await fetch('/repo-tools/manifest.json', { cache: 'no-store' });
+        if (!manifestResp.ok) return null;
+        const manifest = await manifestResp.json();
+        const items = Array.isArray(manifest?.items) ? manifest.items : [];
+        const repoId = toolId && String(toolId).startsWith('repo:') ? String(toolId).slice(5) : '';
+
+        const matched = items.find(
+          (item) => item && (item.repoId === repoId || (fileName && item.fileName === fileName)),
+        );
+        if (!matched) return null;
+
+        const codeResp = await fetch(`/repo-tools/code/${encodeURIComponent(matched.fileName)}`, {
+          cache: 'no-store',
+        });
+        if (!codeResp.ok) return null;
+        const code = await codeResp.text();
+        return {
+          name: matched.name || matched.fileName || 'CodeDeck Tool',
+          code,
+        };
+      } catch {
+        return null;
+      }
+    }
+
+    async function loadSharedTool(toolId, fileName) {
+      const publishedResult = await loadPublishedTool(toolId, fileName);
+
+      if (publishedResult.state === 'ok') {
+        renderCode(publishedResult.tool.code || '<h1>Empty</h1>', publishedResult.tool.name || 'CodeDeck Tool');
+        return;
+      }
+
+      const repoFallback = await loadRepoBaselineTool(toolId, fileName);
+      if (repoFallback) {
+        renderCode(repoFallback.code || '<h1>Empty</h1>', repoFallback.name || 'CodeDeck Tool');
+        return;
+      }
+
+      if (publishedResult.state === 'missing') {
+        renderError('公开快照不存在，请先发布；若是仓库基线工具，确认 repo-tools 文件已部署。');
+        return;
+      }
+      if (publishedResult.state === 'not_found') {
+        renderError('该工具在公开快照中不存在。请确认工具已公开并执行过发布。');
+        return;
+      }
+      renderError('加载分享工具失败。');
+    }
+
+    if (sharedToolId || sharedFileName) {
+      void loadSharedTool(sharedToolId, sharedFileName);
+    }
+
+    window.addEventListener('message', (event) => {
+      const data = event.data || {};
+      if (data.type !== 'CODEDECK_RUNNER_RENDER') return;
+      if (expectedToken && data.token !== expectedToken) return;
+
+      const token = data.token || '';
+      const code = data.code || '<h1>Empty</h1>';
+
+      // Ignore duplicated payload to avoid flicker in new tab handshake retries.
+      if (token === lastToken && code === lastCode) {
+        if (event.source && typeof event.source.postMessage === 'function') {
+          event.source.postMessage({ type: 'CODEDECK_RUNNER_ACK', token }, '*');
+        }
+        return;
+      }
+
+      lastToken = token;
+      lastCode = code;
+
+      frame.srcdoc = code;
+      if (data.title) {
+        document.title = data.title;
+      }
+
+      if (event.source && typeof event.source.postMessage === 'function') {
+        event.source.postMessage({ type: 'CODEDECK_RUNNER_ACK', token }, '*');
+      }
+    });
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,47 @@
+{
+  "generatedAt": "2026-03-02T16:13:27.918Z",
+  "items": [
+    {
+      "fileName": "MonoQR.html",
+      "repoId": "monoqr",
+      "name": "MonoQR-二维码生成器",
+      "description": "黑白二维码生成与导出工具。",
+      "runtime": "html",
+      "language": "html",
+      "category": "二维码",
+      "tags": [
+        "二维码",
+        "生成器"
+      ],
+      "sha256": "3f379291e1d5a4db11edfb34e49bfbc10972517432e88702ef3753e0e04d9fdd"
+    },
+    {
+      "fileName": "pinjie.html",
+      "repoId": "pinjie",
+      "name": "图片无缝拼接",
+      "description": "图片拼接和预览工具。",
+      "runtime": "html",
+      "language": "html",
+      "category": "图像处理",
+      "tags": [
+        "图片",
+        "拼接"
+      ],
+      "sha256": "2e91d66cbbce235c7357157468dc2c474a7abaae2b514d9c613a32b38f61b66a"
+    },
+    {
+      "fileName": "tudao.html",
+      "repoId": "tudao",
+      "name": "图刀",
+      "description": "图片裁切与分割工具。",
+      "runtime": "html",
+      "language": "html",
+      "category": "图像处理",
+      "tags": [
+        "图片",
+        "裁切"
+      ],
+      "sha256": "5198c15a81a48d3fc46a35feaa434cf81d5184a3b02db0d98df1f1ba6e95a11c"
+    }
+  ]
+}
