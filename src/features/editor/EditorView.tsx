@@ -527,7 +527,7 @@ export function EditorView({
             title="CodeDeck Preview"
             src={`/runner.html?token=${encodeURIComponent(previewToken)}`}
             className="h-full w-full border-0"
-            sandbox="allow-scripts allow-same-origin"
+            sandbox="allow-scripts allow-same-origin allow-downloads"
             onLoad={() => postPreview()}
           />
         </div>
