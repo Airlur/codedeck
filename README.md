@@ -152,7 +152,6 @@ npm run dev
 1. `GITHUB_TOKEN`
 - 是否必填：是
 - 作用：调用 GitHub Contents API 读写 `published.json`
-- 权限要求：对目标仓库至少具备 contents:write
 
 2. `GITHUB_REPO`
 - 是否必填：是
@@ -164,6 +163,21 @@ npm run dev
 - 是否必填：是
 - 作用：发布前管理员密码验证
 - 错误行为：缺失会返回 `ADMIN_PASSWORD_NOT_CONFIGURED`
+
+### `GITHUB_TOKEN` 获取方式
+1. 访问 [New personal access token (classic)](https://github.com/settings/tokens/new) 
+2. `Note` 填写用途，例如 `codedeck-publisher`
+3. `Expiration` 按需选择
+4. `Scopes` 勾选 `repo`
+5. 生成后立即复制保存，因为只会显示一次
+
+#### 部署平台环境变量示例
+
+```bash
+GITHUB_TOKEN=github_pat_xxx
+GITHUB_REPO=owner/repo
+ADMIN_PASSWORD=请改成你自己的高强度密码
+```
 
 ### 可选
 
