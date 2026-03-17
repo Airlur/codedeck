@@ -62,7 +62,7 @@ function defaultCommitMessage(): string {
   const d = String(now.getDate()).padStart(2, '0');
   const hh = String(now.getHours()).padStart(2, '0');
   const mm = String(now.getMinutes()).padStart(2, '0');
-  return `chore(codedeck): publish ${y}-${m}-${d} ${hh}:${mm}`;
+  return `chore: 发布公开工具快照 ${y}-${m}-${d} ${hh}:${mm}`;
 }
 
 function toDisplayTime(value: string): string {
@@ -188,7 +188,7 @@ export function SettingsDialog({
 
   return (
     <Modal open title="设置" onClose={onClose} className="max-w-5xl">
-      <div className="grid h-[560px] grid-cols-[180px_1fr] gap-0 overflow-hidden">
+      <div className="grid h-[min(560px,calc(70vh-2rem))] grid-cols-[180px_1fr] gap-0 overflow-hidden">
         <aside className="border-r border-slate-200 bg-slate-50 p-3">
           <nav className="space-y-1">
             <button type="button" className={navButtonClass('webdav')} onClick={() => setActiveTab('webdav')}>
